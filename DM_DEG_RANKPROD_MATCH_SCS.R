@@ -1,6 +1,31 @@
 # load packages needed for probe conversion to genes
 library("rat2302.db")
 library(annotate)
+# file for conversion of Rat entrez gene id into human entrez gene id
+# utilizes Bioconductor package biomaRt
+library("biomaRt")
+# utilizes complicated call structure, but this is the order you do it in
+# generic - can be used for any of the list functions of biomaRt
+# ensembl_us_east <- useMart(biomart="ENSEMBL_MART_ENSEMBL", host="useast.ensembl.org")
+# if you want to use any of the functions of biomaRt you need to know, 
+## the mart (database) you want to query
+### obtained by listMarts(host="useast.ensembl.org")
+## the dataset 
+### available using listDatasets()
+## the host
+### default host ="www.ensembl.org" is no longer functional
+### use a mirror like host="useast.ensembl.org"
+# for joining and df maniulation
+library(plyr)
+# for human gene annotation
+library("org.Hs.eg.db")
+# making database simplification easier
+library(sqldf)
+
+# use the ensembl database for human genes for one part of our query
+human <- useMart(biomart="ENSEMBL_MART_ENSEMBL", dataset="hsapiens_gene_ensembl", host="useast.ensembl.org")
+# use the ensembl database for rat genes for the first part of our query
+rat<-useMart(biomart="ENSEMBL_MART_ENSEMBL", dataset="rnorvegicus_gene_ensembl", host="useast.ensembl.org")
 
 # read output significant gene output from RankProd Back into R
 UPSIG_CarTet_7d_1175 <- read.delim("RP_Sig_Results/CarbonTet_1175mg_7d_UPSig.txt", header=TRUE, sep="\t", row.names = NULL)
@@ -17,17 +42,6 @@ UPSIG_Hydraz_5d_45 <- read.delim("RP_Sig_Results/Hydrazine_45mg_5d_UPSig.txt", h
 DOWNSIG_Hydraz_5d_45 <- read.delim("RP_Sig_Results/Hydrazine_45mg_5d_DOWNSig.txt", header=TRUE, sep="\t", row.names = NULL)
 UPSIG_Phenobarb_1d_54 <- read.delim("RP_Sig_Results/Phenobarbital_54mg_1d_UPSig.txt", header=TRUE, sep="\t", row.names = NULL)
 DOWNSIG_Phenobarb_1d_54 <- read.delim("RP_Sig_Results/Phenobarbital_54mg_1d_DOWNSig.txt", header=TRUE, sep="\t", row.names = NULL)
-
-# for an alternative strategy we did not end up employing
-# n <- max(length(UPSIG_CarTet_7d_1175[,1]), length(UPSIG_CarTet_7d_400[,1]), length(UPSIG_Clotri_3d_89[,1]), length(UPSIG_Clotri_5d_178[,1]), length(UPSIG_Erlot_1d_58[,1]), length(UPSIG_Hydraz_5d_45[,1]), length(UPSIG_Phenobarb_1d_54[,1]))
-# length(UPSIG_CarTet_7d_1175_Probes) <- n
-# length(UPSIG_CarTet_7d_400_Probes) <- n
-# length(UPSIG_Clotri_3d_89_Probes) <- n
-# length(UPSIG_Clotri_5d_178_Probes) <- n
-# length(UPSIG_Erlot_1d_58_Probes) <- n
-# length(UPSIG_Hydraz_5d_45_Probes) <- n
-# length(UPSIG_Phenobarb_1d_54_Probes) <- n
-# UPSig_Probes <- cbind(UPSIG_CarTet_7d_1175_Probes, UPSIG_CarTet_7d_400_Probes, UPSIG_Clotri_3d_89_Probes, UPSIG_Clotri_5d_178_Probes, UPSIG_Erlot_1d_58_Probes, UPSIG_Hydraz_5d_45_Probes, UPSIG_Phenobarb_1d_54_Probes)
 
 # get lists of probes for all significant up conditions
 UPSIGProbes_CarTet_7d_1175 <- as.vector(UPSIG_CarTet_7d_1175[,1])
@@ -47,24 +61,37 @@ count.UpSig.Probes <- as.data.frame(sort(table(all.UpSig.Probes), decreasing = T
 
 # convert probes to Rat Genes
 PROBES<- as.character(row.names(count.UpSig.Probes))
-# Use select and chip.db to extract ids (instead of get/mget).Note: one to many mapping occurs
-AOUT <- select(rat2302.db, PROBES, c("SYMBOL","ENTREZID", "GENENAME"))
-DUP_AOUT <- AOUT[duplicated(AOUT$PROBEID)|duplicated(AOUT$PROBEID,fromLast=TRUE),]
-DUP_AOUT_PROBE <- DUP_AOUT$PROBEID
-AOUT_UNIQ <- AOUT[!(AOUT$PROBEID %in% DUP_AOUT_PROBE),]
-# in duplicated, remove LOC probes + duplicate copy of probes
-# Note: LOC probes are probes that map to gene symb starting with LOC... (duplicate).Same probe also map to another gene symb
-DUP_AOUT1<-DUP_AOUT[!grepl("LOC",DUP_AOUT$SYMBOL)&!duplicated(DUP_AOUT$PROBEID),]
-# rbind DUP_AOUT1 to AOUT_UNIQ
-PROB_RID_OUT <- rbind(AOUT_UNIQ,DUP_AOUT1)
-# bind to final data frame with probes, frequency, gene symbol, entrezid, and gene name
-UP_sig_counts <- cbind(PROB_RID_OUT[,1], count.UpSig.Probes, PROB_RID_OUT[,2:4])
-rownames(UP_sig_counts) <- NULL
-names(UP_sig_counts)[1] <- "UP_SIG_PROBES"
-names(UP_sig_counts)[2] <- "FREQUENCY"
+# Use select and chip.db to extract ids (instead of get/mget).Note: one to many mapping occurs if we had not filtered for entrezid duplicates
+AOUT <- select(rat2302.db, PROBES, "ENTREZID")
+count.UPSIG.entrez <- cbind(AOUT[1], count.UpSig.Probes, AOUT[2])
+colnames(count.UPSIG.entrez) <- c("PROBEID", "FREQ", "ENTREZ_GENE_ID_RAT")
+# get information on 2 linked datasets - homology mapping
+# attributes available by listAttributes()
+# filters available by listFilters()
+RHIDs_UPSIG <- getLDS(attributes=c("entrezgene"), filters="entrezgene", values= AOUT$ENTREZID, mart=rat, attributesL=c("entrezgene"), martL=human, verbose = TRUE, uniqueRows = FALSE)
+# set names of input and output columns
+colnames(RHIDs_UPSIG) <- c("ENTREZ_GENE_ID_RAT", "ENTREZ_GENE_ID_HUMAN")
+# join the 2 data frames including all values in count.UPSIG.entrez and matching values in RHIDs_UPSIG
+count.UPSIG.RH <- join(count.UPSIG.entrez, RHIDs_UPSIG, by = "ENTREZ_GENE_ID_RAT", type = "left")
+count.UPSIG.RH[ ,4] <- as.character(count.UPSIG.RH[ ,4])
+# get gene annotation information
+h.UPSIG.entrezid <- as.character(count.UPSIG.RH$ENTREZ_GENE_ID_HUMAN[!is.na(count.UPSIG.RH$ENTREZ_GENE_ID_HUMAN)])
+h.UPSIG.entrezsymbol  <- as.character(unlist(mget(h.UPSIG.entrezid, envir=org.Hs.egSYMBOL, ifnotfound=NA)))
+h.UPSIG.entrezgene  <- as.character(unlist(mget(h.UPSIG.entrezid, envir=org.Hs.egGENENAME, ifnotfound=NA)))
 
-# write significant down genes with counts to delimited text file
-write.table(UP_sig_counts ,file="RP_Sig_Results/DM_RP_UPsig_counts.txt",sep="\t",row.names=FALSE)
+# don't use this now, but could be useful later for KEGG Pathway data
+# h.UPSIG.entrezPATH  <- as.vector(unlist(mget(h.UPSIG.entrezid, envir=org.Hs.egPATH, ifnotfound=NA)))  
+
+h.UPSIG <- as.data.frame(cbind(h.UPSIG.entrezid, h.UPSIG.entrezsymbol, h.UPSIG.entrezgene))
+colnames(h.UPSIG) <- c("ENTREZ_GENE_ID_HUMAN", "SYMBOL", "GENENAME")
+h.UPSIG[ ,1] <- as.character(h.UPSIG[ ,1])
+h.UPSIG[ ,2] <- as.character(h.UPSIG[ ,2])
+h.UPSIG[ ,3] <- as.character(h.UPSIG[ ,3])
+count.UPSIG.RHcomplete <- join(count.UPSIG.RH, h.UPSIG, by = "ENTREZ_GENE_ID_HUMAN", type = "left")
+count.UPSIG.RHcomplete <- sqldf('SELECT DISTINCT * FROM [count.UPSIG.RHcomplete]')
+
+# write significant up genes with counts to delimited text file
+write.table(count.UPSIG.RHcomplete ,file="RP_Sig_Results/DM_RP_UPsig_counts.txt",sep="\t",row.names=FALSE)
 
 # get lists of probes for all significant down conditions
 DOWNSIGProbes_CarTet_7d_1175 <- as.vector(DOWNSIG_CarTet_7d_1175[,1])

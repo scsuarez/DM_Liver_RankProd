@@ -13,7 +13,7 @@ library(annotate)
 # read in treatment to control mappings
 mappings <- read.delim("Liver_Treated_to_Control_Mapping.txt", header=TRUE, sep="\t")
 # load eset for rankprod analysis
-load("eset_liver_pc25_nsFilter.RData")
+load("eset_liver_pc2_nsFilterNV.RData")
 
 
 # from MDAH, file - DM_LIVER_DEG_RANKPROD_2.R
@@ -120,13 +120,13 @@ filename_down <- "RP_Sig_Results/CarbonTet_400mg_7d_DOWNSig.txt"
 
 # CLOTRIMAZOLE  178 mg/kg	CORN OIL 100 %	ORAL GAVAGE	3 d
 # all arrays for this chemical exposure were judged outliers by ArrayQualityMetrics
-TREATMENT_CHEMICAL <- "CLOTRIMAZOLE"
-TREATMENT_DOSE <- "178 mg/kg"
-TREATMENT_DURATION <- "3 d"
-TREATMENT_VEHICLE <- "CORN OIL 100 %"
-TREATMENT_ROUTE <- "ORAL GAVAGE"
-filename_up <- "RP_Sig_Results/Clotrimazole_178mg_3d_UPSig.txt"
-filename_down <- "RP_Sig_Results/Clotrimazole_178mg_3d_UPSig.txt"
+## TREATMENT_CHEMICAL <- "CLOTRIMAZOLE"
+## TREATMENT_DOSE <- "178 mg/kg"
+## TREATMENT_DURATION <- "3 d"
+## TREATMENT_VEHICLE <- "CORN OIL 100 %"
+## TREATMENT_ROUTE <- "ORAL GAVAGE"
+## filename_up <- "RP_Sig_Results/Clotrimazole_178mg_3d_UPSig.txt"
+## filename_down <- "RP_Sig_Results/Clotrimazole_178mg_3d_UPSig.txt"
 
 # CLOTRIMAZOLE  178 mg/kg	CORN OIL 100 %	ORAL GAVAGE	5 d
 TREATMENT_CHEMICAL <- "CLOTRIMAZOLE"
@@ -166,13 +166,13 @@ filename_down <- "RP_Sig_Results/Hydrazine_45mg_5d_DOWNSig.txt"
 
 # MICONAZOLE  920 mg/kg	CORN OIL 100 %	ORAL GAVAGE	5 d
 # all arrays for this chemical exposure were judged outliers by ArrayQualityMetrics
-TREATMENT_CHEMICAL <- "MICONAZOLE"
-TREATMENT_DOSE <- "920 mg/kg"
-TREATMENT_DURATION <- "5 d"
-TREATMENT_VEHICLE <- "CORN OIL 100 %"
-TREATMENT_ROUTE <- "ORAL GAVAGE"
-filename_up <- "RP_Sig_Results/Miconozole_920mg_5d_UPSig.txt"
-filename_down <- "RP_Sig_Results/Miconozole_920mg_5d_DOWNSig.txt"
+## TREATMENT_CHEMICAL <- "MICONAZOLE"
+## TREATMENT_DOSE <- "920 mg/kg"
+## TREATMENT_DURATION <- "5 d"
+## TREATMENT_VEHICLE <- "CORN OIL 100 %"
+## TREATMENT_ROUTE <- "ORAL GAVAGE"
+## filename_up <- "RP_Sig_Results/Miconozole_920mg_5d_UPSig.txt"
+## filename_down <- "RP_Sig_Results/Miconozole_920mg_5d_DOWNSig.txt"
 
 # PHENOBARBITAL  54 mg/kg	WATER 100 %	ORAL GAVAGE	1 d
 TREATMENT_CHEMICAL <- "PHENOBARBITAL"
@@ -183,4 +183,4 @@ TREATMENT_ROUTE <- "ORAL GAVAGE"
 filename_up <- "RP_Sig_Results/Phenobarbital_54mg_1d_UPSig.txt"
 filename_down <- "RP_Sig_Results/Phenobarbital_54mg_1d_DOWNSig.txt"
 
-RP_genes(eset_liver_pc.25_nsFilter_rma_qc, TREATMENT_CHEMICAL, TREATMENT_DOSE, TREATMENT_DURATION, TREATMENT_VEHICLE, TREATMENT_ROUTE, filename_up, filename_down)
+RP_genes(eset_liver_pc.2_nsFilterNV_rma_qc, TREATMENT_CHEMICAL, TREATMENT_DOSE, TREATMENT_DURATION, TREATMENT_VEHICLE, TREATMENT_ROUTE, filename_up, filename_down)
