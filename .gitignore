@@ -1,0 +1,15 @@
+.Rproj.user
+.Rhistory
+.RData
+*.RData
+*.Rproj
+CEL_Liver_Files/
+*.CEL
+Supplementary_Files/
+Workspaces_And_Objects/
+Quality_Metrics/
+liver_fc_final_filtered.txt
+Liver_Treated_to_Control_Mapping.txt
+*.txt
+*.png
+*.csv
