@@ -82,16 +82,25 @@ h.UPSIG.entrezgene  <- as.character(unlist(mget(h.UPSIG.entrezid, envir=org.Hs.e
 # don't use this now, but could be useful later for KEGG Pathway data
 # h.UPSIG.entrezPATH  <- as.vector(unlist(mget(h.UPSIG.entrezid, envir=org.Hs.egPATH, ifnotfound=NA)))  
 
+# bind entrez id, symbol, and gene information into 1 df
 h.UPSIG <- as.data.frame(cbind(h.UPSIG.entrezid, h.UPSIG.entrezsymbol, h.UPSIG.entrezgene))
+# set colnames of df so it can be joined
 colnames(h.UPSIG) <- c("ENTREZ_GENE_ID_HUMAN", "SYMBOL", "GENENAME")
-h.UPSIG[ ,1] <- as.character(h.UPSIG[ ,1])
-h.UPSIG[ ,2] <- as.character(h.UPSIG[ ,2])
-h.UPSIG[ ,3] <- as.character(h.UPSIG[ ,3])
+# set column classes to character for join
+for(i in 1:dim(h.UPSIG)[2]){
+  h.UPSIG[ ,i] <- as.character(h.UPSIG[ ,i])
+}
+# join df with human entrez information to our table with probes, frequency, rat entrezid
 count.UPSIG.RHcomplete <- join(count.UPSIG.RH, h.UPSIG, by = "ENTREZ_GENE_ID_HUMAN", type = "left")
+# use SQL and sqldf to subset for distinct cases (no repeated information, which happens for some reason with join)
 count.UPSIG.RHcomplete <- sqldf('SELECT DISTINCT * FROM [count.UPSIG.RHcomplete]')
 
 # write significant up genes with counts to delimited text file
-write.table(count.UPSIG.RHcomplete ,file="RP_Sig_Results/DM_RP_UPsig_counts.txt",sep="\t",row.names=FALSE)
+write.table(count.UPSIG.RHcomplete ,file = "RP_Sig_Analysis/DM_RP_UPsig_entrez_counts.txt",sep="\t",row.names=FALSE)
+
+# write probe and human entrez id to file for DAVID web analysis
+write(count.UPSIG.RHcomplete$PROBEID, file = "RP_Sig_Analysis/DM_RP_UPsig_probes.txt")
+write(h.UPSIG.entrezid, file = "RP_Sig_Analysis/DM_RP_UPsig_hentrezid.txt")
 
 # get lists of probes for all significant down conditions
 DOWNSIGProbes_CarTet_7d_1175 <- as.vector(DOWNSIG_CarTet_7d_1175[,1])
@@ -111,24 +120,40 @@ count.DownSig.Probes <- as.data.frame(sort(table(all.DownSig.Probes), decreasing
 
 # convert probes to Rat Genes
 PROBES<- as.character(row.names(count.DownSig.Probes))
-# Use select and chip.db to extract ids (instead of get/mget).Note: one to many mapping occurs
-AOUT <- select(rat2302.db, PROBES, c("SYMBOL","ENTREZID", "GENENAME"))
-DUP_AOUT <- AOUT[duplicated(AOUT$PROBEID)|duplicated(AOUT$PROBEID,fromLast=TRUE),]
-DUP_AOUT_PROBE <- DUP_AOUT$PROBEID
-AOUT_UNIQ <- AOUT[!(AOUT$PROBEID %in% DUP_AOUT_PROBE),]
-# in duplicated, remove LOC probes + duplicate copy of probes
-# Note: LOC probes are probes that map to gene symb starting with LOC... (duplicate).Same probe also map to another gene symb
-DUP_AOUT1<-DUP_AOUT[!grepl("LOC",DUP_AOUT$SYMBOL)&!duplicated(DUP_AOUT$PROBEID),]
-# rbind DUP_AOUT1 to AOUT_UNIQ
-PROB_RID_OUT <- rbind(AOUT_UNIQ,DUP_AOUT1)
-# bind to final data frame with probes, frequency, gene symbol, entrezid, and gene name
-DOWN_sig_counts <- cbind(PROB_RID_OUT[,1], count.DownSig.Probes, PROB_RID_OUT[,2:4])
-rownames(DOWN_sig_counts) <- NULL
-names(DOWN_sig_counts)[1] <- "DOWN_SIG_PROBES"
-names(DOWN_sig_counts)[2] <- "FREQUENCY"
+# Use select and chip.db to extract ids (instead of get/mget).Note: one to many mapping occurs if we had not filtered for entrezid duplicates
+BOUT <- select(rat2302.db, PROBES, "ENTREZID")
+count.DOWNSIG.entrez <- cbind(BOUT[1], count.DownSig.Probes, BOUT[2])
+colnames(count.DOWNSIG.entrez) <- c("PROBEID", "FREQ", "ENTREZ_GENE_ID_RAT")
+# get information on 2 linked datasets - homology mapping
+# attributes available by listAttributes()
+# filters available by listFilters()
+RHIDs_DOWNSIG <- getLDS(attributes=c("entrezgene"), filters="entrezgene", values= BOUT$ENTREZID, mart=rat, attributesL=c("entrezgene"), martL=human, verbose = TRUE, uniqueRows = FALSE)
+# set names of input and output columns
+colnames(RHIDs_DOWNSIG) <- c("ENTREZ_GENE_ID_RAT", "ENTREZ_GENE_ID_HUMAN")
+# join the 2 data frames including all values in count.UPSIG.entrez and matching values in RHIDs_UPSIG
+count.DOWNSIG.RH <- join(count.DOWNSIG.entrez, RHIDs_DOWNSIG, by = "ENTREZ_GENE_ID_RAT", type = "left")
+count.DOWNSIG.RH[ ,4] <- as.character(count.DOWNSIG.RH[ ,4])
+# get gene annotation information
+h.DOWNSIG.entrezid <- as.character(count.DOWNSIG.RH$ENTREZ_GENE_ID_HUMAN[!is.na(count.DOWNSIG.RH$ENTREZ_GENE_ID_HUMAN)])
+h.DOWNSIG.entrezsymbol  <- as.character(unlist(mget(h.DOWNSIG.entrezid, envir=org.Hs.egSYMBOL, ifnotfound=NA)))
+h.DOWNSIG.entrezgene  <- as.character(unlist(mget(h.DOWNSIG.entrezid, envir=org.Hs.egGENENAME, ifnotfound=NA)))
 
-# write significant down genes with counts to delimited text file
-write.table(DOWN_sig_counts ,file="RP_Sig_Results/DM_RP_DOWNSig_counts.txt",sep="\t",row.names=FALSE)
+# bind entrez id, symbol, and gene information into 1 df
+h.DOWNSIG <- as.data.frame(cbind(h.DOWNSIG.entrezid, h.DOWNSIG.entrezsymbol, h.DOWNSIG.entrezgene))
+# set colnames of df so it can be joined
+colnames(h.DOWNSIG) <- c("ENTREZ_GENE_ID_HUMAN", "SYMBOL", "GENENAME")
+# set column classes to character for join
+for(i in 1:dim(h.DOWNSIG)[2]){
+  h.DOWNSIG[ ,i] <- as.character(h.DOWNSIG[ ,i])
+}
+# join df with human entrez information to our table with probes, frequency, rat entrezid
+count.DOWNSIG.RHcomplete <- join(count.DOWNSIG.RH, h.DOWNSIG, by = "ENTREZ_GENE_ID_HUMAN", type = "left")
+# use SQL and sqldf to subset for distinct cases (no repeated information, which happens for some reason with join)
+count.DOWNSIG.RHcomplete <- sqldf('SELECT DISTINCT * FROM [count.DOWNSIG.RHcomplete]')
 
-DM_UPSig_counts_liver <- read.delim("RP_Sig_Results/DM_RP_UPsig_counts.txt", header=TRUE, sep="\t", row.names = NULL)
-DM_DOWNSig_counts_liver <- read.delim("RP_Sig_Results/DM_RP_DOWNSig_counts.txt", header=TRUE, sep="\t", row.names = NULL)
+# write significant up genes with counts to delimited text file
+write.table(count.DOWNSIG.RHcomplete ,file = "RP_Sig_Analysis/DM_RP_DOWNsig_entrez_counts.txt",sep="\t",row.names=FALSE)
+
+# write probe and human entrez id to file for DAVID web analysis
+write(count.DOWNSIG.RHcomplete$PROBEID, file = "RP_Sig_Analysis/DM_RP_DOWNsig_probes.txt")
+write(h.DOWNSIG.entrezid, file = "RP_Sig_Analysis/DM_RP_DOWNsig_hentrezid.txt")
