@@ -9,7 +9,7 @@ library(annotate)
 # Read in the tables that data depends on
 
 #read in fold change matrix
-# 645 Chemical Exposure Conditions,  Probes(genes)
+# 646 Chemical Exposure Conditions,  Probes(genes)
 # read in treatment to control mappings
 mappings <- read.delim("Liver_Treated_to_Control_Mapping.txt", header=TRUE, sep="\t")
 # load eset for rankprod analysis
